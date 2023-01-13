@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Page</title>
+</head>
+
+<body>
+  <nav>
+    <ul>
+      <li><b>Home</b></li>
+      <li><a href="./about">About</a></li>
+    </ul>
+  </nav>
+
+  <h1>Home</h1>
+  <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quod.</p>
+
+  <script>
+    // initialize the service worker after page load
+    window.addEventListener('load', () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/example/sw.js')
+          .then(reg => console.log('service worker registered'))
+          .catch(err => console.log('service worker not registered', err));
+      }
+    });
+  </script>
+</body>
+
+</html>
