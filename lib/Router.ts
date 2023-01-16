@@ -155,7 +155,7 @@ export class Router<State extends { [key: string]: unknown } = any>
     this.#logger = logger;
   }
 
-  setAppState(state: State) {
+  setState(state: State) {
     for (const [key, value] of Object.entries(state)) {
       (this.appState as any)[key] = value;
     }
