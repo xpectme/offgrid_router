@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { ViewEngineOptions } from "../deps.ts";
-import { Application } from "./Application.ts";
+import { Router } from "./Router.ts";
 import { HttpError } from "./HttpError.ts";
 import { Status } from "./Status.ts";
 
@@ -11,7 +11,7 @@ export class Context<State extends { [key: string]: unknown } = any> {
   params: Record<string, string> = {};
 
   constructor(
-    public app: Application<State>,
+    public app: Router<State>,
     public state: State,
     public request: Request,
     match: any,

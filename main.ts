@@ -1,4 +1,3 @@
-export * from "./lib/Application.ts";
 export * from "./lib/Context.ts";
 export * from "./lib/HttpError.ts";
 export * from "./lib/OnlineState.ts";
