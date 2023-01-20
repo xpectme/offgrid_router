@@ -72,7 +72,7 @@ router.get("/offline", (context) => {
 }, { offline: "throw" });
 
 // route that is only accessible in offline state
-router.get("/offline", (context) => {
+router.get("/online_only", (context) => {
   context.plain("Must be called in offline state, but not in online state");
 }, { offline: "only" });
 
