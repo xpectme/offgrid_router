@@ -7,8 +7,7 @@ import { Status } from "./Status.ts";
 export type ContextViewOptions = Partial<ViewEngineOptions>;
 
 export class Context<State extends { [key: string]: unknown } = any> {
-  #response: Response;
-
+  readonly response: Response;
   readonly params: Record<string, string> = {};
   readonly query: URLSearchParams;
 
@@ -25,7 +24,7 @@ export class Context<State extends { [key: string]: unknown } = any> {
     }
 
     this.query = new URLSearchParams(request.url.split("?")[1]);
-    this.#response = new Response(null, { status: Status.OK });
+    this.response = new Response(null, { status: Status.OK });
   }
 
   assert(condition: boolean, status: Status, message?: string) {
@@ -70,8 +69,8 @@ export class Context<State extends { [key: string]: unknown } = any> {
     data: unknown | Promise<unknown>,
     contentType: string,
   ) {
-    const headers = this.#response.headers;
-    const status = this.#response.status;
+    const headers = this.response.headers;
+    const status = this.response.status;
 
     if (!headers.has("Content-Type")) {
       headers.set("Content-Type", contentType);
