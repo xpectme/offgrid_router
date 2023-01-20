@@ -4,7 +4,7 @@
 import { Router as TinyRouter, ViewEngine } from "../deps.ts";
 import { Context } from "./Context.ts";
 import { HttpError } from "./HttpError.ts";
-import { OnlineState, OnlineStateOptions } from "./OnlineState.ts";
+import { HookFunction, RouterHook } from "./RouterHook.ts";
 import { Status } from "./Status.ts";
 
 export interface ActionHandler<State extends Record<string, unknown> = any> {
@@ -37,7 +37,7 @@ export interface ActionOptions {
   encode?: (value: string) => string;
 }
 
-export type Method =
+export type RequestMethod =
   | "GET"
   | "POST"
   | "PUT"
@@ -47,7 +47,7 @@ export type Method =
   | "OPTIONS";
 export type MethodWildcard = "ALL";
 
-export interface Params {
+export interface RequestParams {
   [key: string]: string;
 }
 
@@ -62,23 +62,15 @@ export interface TokenKey {
 export type Key = TokenKey;
 export type Keys = Array<Key>;
 
-export interface Match {
-  params: Params;
+export interface RequestMatch {
+  params: RequestParams;
   matches?: RegExpExecArray;
-  method: Method | MethodWildcard;
+  method: RequestMethod | MethodWildcard;
   path: string;
   regexp: RegExp;
   options: ActionOptions;
   keys: Keys;
   handler: ActionHandler;
-}
-
-export interface RouterLogger {
-  log: (...args: unknown[]) => void;
-  info: (...args: unknown[]) => void;
-  warn: (...args: unknown[]) => void;
-  error: (...args: unknown[]) => void;
-  trace: (...args: unknown[]) => void;
 }
 
 declare global {
@@ -97,62 +89,24 @@ declare global {
   }
 }
 
-interface RouterOptions {
-  logging: boolean;
-  onlineState: OnlineStateOptions | true | false;
-}
-
 export class Router<State extends { [key: string]: unknown } = any>
   extends TinyRouter {
-  #options: RouterOptions = {
-    logging: true,
-    onlineState: false,
-  };
   engine: ViewEngine;
-
-  #logger: RouterLogger = console;
-  log: (...args: unknown[]) => void;
-  info: (...args: unknown[]) => void;
-  warn: (...args: unknown[]) => void;
-  error: (...args: unknown[]) => void;
-  trace: (...args: unknown[]) => void;
 
   #errorRoutes = new Map<Status, ActionHandler>();
   get errorRoutes() {
     return this.#errorRoutes;
   }
 
-  #onlineState: OnlineState | undefined;
-
   appState: State;
   request!: Request;
   response!: Promise<Response | void>;
 
-  constructor(options: Partial<RouterOptions> = {}) {
+  readonly hooks = new Set<RouterHook>();
+
+  constructor() {
     super();
-    this.#options = { ...this.#options, ...options };
     this.appState = {} as State;
-
-    const log = (name: string) => (...args: unknown[]) =>
-      this.#options.logging ? this.#logger[name](...args) : undefined;
-    this.log = log("log");
-    this.info = log("info");
-    this.warn = log("warn");
-    this.error = log("error");
-    this.trace = log("trace");
-
-    this.setLogger(console);
-
-    if (this.#options.onlineState) {
-      const options = this.#options.onlineState === true
-        ? {}
-        : this.#options.onlineState;
-      this.#onlineState = new OnlineState(options);
-    }
-  }
-
-  setLogger(logger: RouterLogger) {
-    this.#logger = logger;
   }
 
   setState(state: State) {
@@ -167,119 +121,99 @@ export class Router<State extends { [key: string]: unknown } = any>
 
   setErrorHandler<State extends { error: Error }>(
     status: Status,
-    handler: ActionHandler<State>,
+    handler?: ActionHandler<State>,
   ) {
+    if (!handler) {
+      handler = (context) =>
+        context.view(status.toString(), { title: Status[status] } as any);
+    }
     this.#errorRoutes.set(status, handler as ActionHandler);
   }
 
   listen(event: FetchEvent) {
     const request = event.request;
     const { pathname } = new URL(request.url);
-    const match: Match = this.match(request.method, pathname);
-
+    const match: RequestMatch = this.match(request.method, pathname);
     if (match) {
-      if (this.#onlineState) {
-        this.#onlineState.update();
-        if (
-          // if the route is only accessible offline, then the service worker
-          // will only handle the request if the device is offline.
-          (match.options.offlineHandling === "onlyOffline" &&
-            this.#onlineState.state)
-        ) {
-          return;
-        } else if (
-          // if the route is only accessible online, but the device is offline,
-          // then the service worker will force a 503 Service Unavailable response.
-          (match.options.offlineHandling === "errorOffline" &&
-            !this.#onlineState.state)
-        ) {
-          event.respondWith(
-            (async () => {
-              const handler = this.#errorRoutes.get(Status.ServiceUnavailable);
-              if (handler) {
-                const context = new Context(
-                  this,
-                  this.appState,
-                  request,
-                  match,
-                );
-                context.state = this.appState;
-                (context.state as any).connection = this.#onlineState;
-                let response = await handler(context);
-                response = response ?? await this.response;
-                if (response) return response;
-              }
+      const context = new Context(this, this.appState, request, match);
+      event.respondWith(this.#handleRequest(context, match));
+    }
+  }
 
-              return new Response(null, { status: Status.ServiceUnavailable });
-            })(),
-          );
-          return;
-        } else {
-          // if the route is accessible online and offline, then the
-          // service worker will always handle the request.
+  async #handleRequest(
+    context: Context,
+    match: RequestMatch,
+  ): Promise<Response> {
+    try {
+      for (const hook of this.hooks) {
+        const hookFn = "onRequest" in hook
+          ? hook.onRequest
+          : hook as HookFunction;
+        if ("function" === typeof hookFn) {
+          const respond = await hookFn(context, match.options);
+          if (respond === false) {
+            return;
+          }
         }
       }
 
-      const context = new Context(this, this.appState, request, match);
-      context.state = this.appState;
-      event.respondWith((async () => {
-        try {
-          this.info(`DONE: ${match.method} ${match.path}`, match.params);
+      const handler = match.handler;
+      const response = await this.#executeHandler(handler, context);
+      if (response) return response;
 
-          // call the route handler
-          let response = await match.handler(context);
-          response = response ?? await this.response;
-          if (response) return response;
-
-          // if the handler doesn't return a response, return a 204
-          return new Response(null, { status: Status.NoContent });
-        } catch (error) {
-          this.warn(`FAIL: ${match.method} ${match.path}`, match.params);
-
-          // get the route handler for the error status
-          const handler = error instanceof HttpError
-            ? this.errorRoutes.get(error.status)
-            : this.errorRoutes.get(Status.InternalServerError);
-
-          if (handler) {
-            // set the error on the context, so the handler can access it
-            (context.state as any).error = error;
-
-            try {
-              // call the handler
-              let response = await handler(context);
-              response = response ?? await this.response;
-              if (response) return response;
-
-              // if the handler doesn't return a response, throw an error
-              context.throws(
-                Status.InternalServerError,
-                `Error handler failed to respond!`,
-              );
-            } catch (error) {
-              this.error(`Error handler failed to respond!`);
-              this.trace(error);
-
-              const inernalErrorHandler = this.errorRoutes.get(
-                Status.InternalServerError,
-              );
-              if (inernalErrorHandler) {
-                let response = await inernalErrorHandler(context);
-                response = response ?? await this.response;
-                if (response) return response;
-              }
-
-              // if the handler throws, return a generic error response
-              return new Response(error.message, {
-                status: Status.InternalServerError,
-              });
-            }
-          }
-
-          // otherwise, return a generic error response
-          return new Response(error.message, { status: error.status });
-        }
-      })());
+      // if the handler doesn't return a response, return a 204
+      return new Response(null, { status: Status.NoContent });
+    } catch (error) {
+      return this.#handleError(context, match, error);
     }
+  }
+
+  async #handleError(
+    context: Context,
+    match: RequestMatch,
+    error: Error,
+  ): Promise<Response> {
+    try {
+      const status = error instanceof HttpError
+        ? error.status
+        : Status.InternalServerError;
+
+      for (const hook of this.hooks) {
+        const hookFn = "onError" in hook ? hook.onError : hook as HookFunction;
+        if ("function" === typeof hookFn) {
+          const respond = await hookFn(context, match.options);
+          if (respond === false) {
+            return;
+          }
+        }
+      }
+
+      // get the route handler for the error status
+      const handler = this.errorRoutes.get(status);
+      (context.state as any).error = error;
+
+      if (handler) {
+        const response = await this.#executeHandler(handler, context);
+        if (response) return response;
+      }
+
+      return new Response(error.message, { status });
+    } catch {
+      const status = Status.InternalServerError;
+      const handler = this.errorRoutes.get(status);
+      if (handler) {
+        const response = await this.#executeHandler(handler, context);
+        if (response) return response;
+      }
+
+      // if the handler throws, return a generic error response
+      return new Response(error.message, { status });
+    }
+  }
+
+  async #executeHandler(handler: ActionHandler, context: Context) {
+    let response = await handler(context);
+    response = response ?? await this.response;
+    if (response) return response;
   }
 }

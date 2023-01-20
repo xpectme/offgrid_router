@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import { ViewEngineOptions } from "../deps.ts";
 import { Router } from "./Router.ts";
-import { HttpError } from "./HttpError.ts";
+import { HttpError, toHttpError } from "./HttpError.ts";
 import { Status } from "./Status.ts";
 
 export type ContextViewOptions = Partial<ViewEngineOptions>;
@@ -32,7 +32,7 @@ export class Context<State extends { [key: string]: unknown } = any> {
   }
 
   plain(data: string) {
-    this.#createResponse(data, "text/plain");
+    this.#createResponse(String(data), "text/plain");
   }
 
   json(data: Record<string, unknown>) {
@@ -73,6 +73,8 @@ export class Context<State extends { [key: string]: unknown } = any> {
     const dataPromise = data instanceof Promise ? data : Promise.resolve(data);
     this.app.response = dataPromise
       .then((data: unknown) => new Response(String(data), { headers, status }))
-      .catch((error) => this.app.error(error));
+      .catch((error) => {
+        throw toHttpError(error, Status.InternalServerError);
+      });
   }
 }
