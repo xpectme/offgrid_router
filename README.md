@@ -30,14 +30,17 @@ router.hooks.add(hooks.onlineState);
 
 router.setViewEngine(handlebarsEngine);
 
+// URL: /hello?name=John
 router.get("/hello", (context) => {
-  context.plain("Hello World");
+  context.plain(`Hello ${context.query.get("name")}`);
 });
 
+// URL: /hello/John
 router.get("/hello/:name", (context) => {
   context.json({ message: `Hello ${context.params.name}` });
 });
 
+// URL: /hello/John/42
 router.get("/hello/:name/:age", (context) => {
   if (context.request.headers.get("HX-Request") === "true") {
     // If you want to use only a partial view, you can use the context.partial
@@ -56,13 +59,13 @@ router.get("/hello/:name/:age", (context) => {
 
 // route that throws a 503 in offline state
 router.get("/offline", (context) => {
-  context.plain("Offline");
-}, { offlineHandling: "errorOffline" });
+  context.plain("Must not be called in offline state");
+}, { offline: "throw" });
 
 // route that is only accessible in offline state
 router.get("/offline", (context) => {
-  context.plain("Offline");
-}, { offlineHandling: "onlyOffline" });
+  context.plain("Must be called in offline state, but not in online state");
+}, { offline: "only" });
 
 // Status Code 503: Can be used to handle offline state
 app.setErrorHandler(Status.ServiceUnavailable);

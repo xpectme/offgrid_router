@@ -7,8 +7,10 @@ import { Status } from "./Status.ts";
 export type ContextViewOptions = Partial<ViewEngineOptions>;
 
 export class Context<State extends { [key: string]: unknown } = any> {
-  response: Response;
-  params: Record<string, string> = {};
+  #response: Response;
+
+  readonly params: Record<string, string> = {};
+  readonly query: URLSearchParams;
 
   constructor(
     public app: Router<State>,
@@ -17,8 +19,13 @@ export class Context<State extends { [key: string]: unknown } = any> {
     match: any,
   ) {
     this.app = app;
-    this.params = match.params;
-    this.response = new Response(null, { status: Status.OK });
+    this.params = {};
+    for (const [key, value] of Object.entries(match.params)) {
+      this.params[key] = decodeURIComponent(value as string);
+    }
+
+    this.query = new URLSearchParams(request.url.split("?")[1]);
+    this.#response = new Response(null, { status: Status.OK });
   }
 
   assert(condition: boolean, status: Status, message?: string) {
@@ -63,8 +70,8 @@ export class Context<State extends { [key: string]: unknown } = any> {
     data: unknown | Promise<unknown>,
     contentType: string,
   ) {
-    const headers = this.response.headers;
-    const status = this.response.status;
+    const headers = this.#response.headers;
+    const status = this.#response.status;
 
     if (!headers.has("Content-Type")) {
       headers.set("Content-Type", contentType);
