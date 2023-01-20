@@ -6,12 +6,17 @@ export default function logging(): RouterHook {
     onRequest: (context: Context) => {
       console.info(context.request.method + " " + context.request.url, {
         headers: Object.fromEntries(context.request.headers),
+        status: context.request.status,
         state: context.state,
       });
     },
     onError: (context: Context) => {
       console.error(context.state.error);
-      console.log(context.state);
+      console.log(context.request.method + " " + context.request.url, {
+        headers: Object.fromEntries(context.request.headers),
+        status: context.request.status,
+        state: context.state,
+      });
     },
   };
 }
