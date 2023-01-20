@@ -17,8 +17,15 @@ import { HandlebarsEngine } from "https://deno.land/x/offgrid_handlebars/main.ts
 
 const router = new Router();
 
+// enables logging
 router.hooks.add(hooks.logging);
+
+// parses the current path and adds it to the context.state.currentPath
+// This can be directly accessed in the template.
 router.hooks.add(hooks.path);
+
+// adds the current state to the context.state.onlineState
+// This can be directly accessed in the template.
 router.hooks.add(hooks.onlineState);
 
 router.setViewEngine(handlebarsEngine);
