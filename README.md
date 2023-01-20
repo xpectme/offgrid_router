@@ -15,6 +15,15 @@ import {
 } from "https://deno.land/x/offgrid-router/main.ts";
 import { HandlebarsEngine } from "https://deno.land/x/offgrid_handlebars/main.ts";
 
+const CACHE_VERSION = "v1";
+
+const hbsEngine = new HandlebarsEngine({
+  layoutsPath: "views",
+  partialsPath: "views/partials",
+  defaultLayout: "layout",
+  extName: ".hbs",
+});
+
 const router = new Router();
 
 // enables logging
@@ -28,7 +37,7 @@ router.hooks.add(hooks.path);
 // This can be directly accessed in the template.
 router.hooks.add(hooks.onlineState);
 
-router.setViewEngine(handlebarsEngine);
+router.setViewEngine(hbsEngine);
 
 // URL: /hello?name=John
 router.get("/hello", (context) => {
@@ -73,6 +82,19 @@ app.setErrorHandler(Status.ServiceUnavailable);
 // you can also add a handler function to the error handler
 app.setErrorHandler(Status.NotFound, (context) => {
   context.plain("Not Found");
+});
+
+globalThis.addEventListener("install", (event) => {
+  (event as any).waitUntil(
+    caches.open(CACHE_VERSION).then((cache) => {
+      hbsEngine.install({ fetch: cachedFetch(cache), partials: [] });
+      return (cache as any).addAll([
+        "/views/layout.hbs",
+        "/views/hello.hbs",
+        "/views/503.hbs",
+      ]);
+    }),
+  );
 });
 
 addEventListener("fetch", (event) => {
