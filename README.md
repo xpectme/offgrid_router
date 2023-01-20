@@ -39,10 +39,19 @@ router.get("/hello/:name", (context) => {
 });
 
 router.get("/hello/:name/:age", (context) => {
-  context.view("hello", {
-    name: context.params.name,
-    age: context.params.age,
-  });
+  if (context.request.headers.get("HX-Request") === "true") {
+    // If you want to use only a partial view, you can use the context.partial
+    context.partial("hello", {
+      name: context.params.name,
+      age: context.params.age,
+    });
+  } else {
+    // If you want to use a full view with a layout, you can use the context.view
+    context.view("hello", {
+      name: context.params.name,
+      age: context.params.age,
+    });
+  }
 });
 
 // route that throws a 503 in offline state
