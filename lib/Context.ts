@@ -7,7 +7,7 @@ import { Status } from "./Status.ts";
 export type ContextViewOptions = Partial<ViewEngineOptions>;
 
 export class Context<State extends { [key: string]: unknown } = any> {
-  readonly response: Response;
+  response: Response;
   readonly params: Record<string, string> = {};
   readonly query: URLSearchParams;
 
