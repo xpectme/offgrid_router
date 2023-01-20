@@ -13,7 +13,7 @@ export interface ActionHandler<State extends Record<string, unknown> = any> {
 
 export interface ActionOptions {
   // Route is sensitive to online/offline state.
-  offlineHandling?: "onlyOffline" | "errorOffline";
+  offline?: "throw" | "only" | "ignore";
 
   // When `true` the regexp will be case sensitive. (default: `false`)
   sensitive?: boolean;

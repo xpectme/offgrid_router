@@ -80,19 +80,19 @@ export default function onlineState(options: Partial<OnlineStateOptions> = {}) {
       // check if the client has a good connection
       const ok = onlineState.ok;
 
-      // Throw an error if the client is offline and the offlineHandling
+      // Throw an error if the client is offline and the offline
       // option is set to "errorOffline"
       // This is useful to stop the request if the client is offline and
       // the service worker is not able to handle the request.
-      if (options.offlineHandling === "errorOffline" && !ok) {
+      if (options.offline === "throw" && !ok) {
         throw new HttpError(Status.ServiceUnavailable, "Service Unavailable");
       }
 
-      // stop responding if the client is not offline and the offlineHandling
+      // stop responding if the client is not offline and the offline
       // option is set to "onlyOffline"
       // This is useful to keep the work load from the client if online
       // and use the service worker as a route endpoint if offline.
-      if (options.offlineHandling === "onlyOffline" && ok) {
+      if (options.offline === "only" && ok) {
         return false;
       }
     },
