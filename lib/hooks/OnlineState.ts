@@ -81,7 +81,7 @@ export default function onlineState(options: Partial<OnlineStateOptions> = {}) {
       const ok = onlineState.ok;
 
       // Throw an error if the client is offline and the offline
-      // option is set to "errorOffline"
+      // option is set to "throw"
       // This is useful to stop the request if the client is offline and
       // the service worker is not able to handle the request.
       if (options.offline === "throw" && !ok) {
@@ -89,7 +89,7 @@ export default function onlineState(options: Partial<OnlineStateOptions> = {}) {
       }
 
       // stop responding if the client is not offline and the offline
-      // option is set to "onlyOffline"
+      // option is set to "only"
       // This is useful to keep the work load from the client if online
       // and use the service worker as a route endpoint if offline.
       if (options.offline === "only" && ok) {
